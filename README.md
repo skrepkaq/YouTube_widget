@@ -4,7 +4,7 @@ My version of [AlexGyver](https://github.com/AlexGyver)'s [project](https://gith
 ## My improvements
 1. Fix work with new youtube API
 1000. Change subscribers displaying from 42000 to 42K (forced by youtube API update)
-7. Change from last Hour-Day to Day-Week
+7. Change from last Hour-Day to Week-Month
 993. Add caching last subs in EEPROM
 986. Add WIFI firmware update
 
