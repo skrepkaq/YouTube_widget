@@ -12,7 +12,7 @@ const char* password = "WIFIPASSWORD";  // your network key
 const char* API_KEY = "APIKEY";  // your google API Token
 const char* CHANNEL_ID = "ID";  // url of channel
 
-int max_gain = 3000;   // число подписок в день, при котором цвет станет красным
+int max_gain = 50000;   // число просмотров в неделю, при котором цвет станет красным
 //-----------НАСТРОЙКИ-------------
 
 const char* host = "WiFiWidget";
@@ -48,15 +48,16 @@ float delta_f = 0.0;
 float K = 0.99, k;
 float temp = 0.0;
 uint16_t i = 0, j = 0;
-uint32_t subscribers, new_subscribers = 0;
+uint32_t views, new_views = 0;
+uint32_t subscribers;
 boolean display_mode = true, wifi_connect = false;
 boolean start_flag = true;
 boolean mqtt_update = false;
-const char compare[] = "\"subscriberCount";
+const char *compares[] = {"\"subscriberCount", "viewCount"};
 uint32_t last_check, last_color, last_Submins, last_BL, last_mode, last_http_get, wifi_try, dif_h;
 HTTPClient http;
-uint32_t delta_week[7], delta_month[30], total_week_subs, total_month_subs;
-uint32_t minute_subs;
+uint32_t delta_week[7], delta_month[30], total_week_views, total_month_views;
+uint32_t minute_views;
 uint32_t last_minute;
 uint32_t last_day;
 uint8_t days = 0, days_week = 0;
@@ -96,23 +97,23 @@ void setup () {
   delay(100);
 
   for (int i = 0; i < 7; i++) {
-    delta_week[i] = EEPROM.read(i) * 1000; //0-59
+    delta_week[i] = EEPROM.read(i) * 100; //0-59
   }
   for (int i = 0; i < 30; i++) {
-    delta_month[i] = EEPROM.read(i + 7) * 1000; //60-83
+    delta_month[i] = EEPROM.read(i + 7) * 100; //60-83
   }
   days_week = EEPROM.read(37);
   days = EEPROM.read(38);
   dif_h = EEPROM.read(39) * 1000000;
-  total_week_subs = 0;
+  total_week_views = 0;
   for (int i = 0; i < 7; i++) {
-    total_week_subs += delta_week[i];
+    total_week_views += delta_week[i];
   }
-  total_month_subs = 0;
+  total_month_views = 0;
   for (int i = 0; i < 30; i++) {
-    total_month_subs += delta_month[i];
+    total_month_views += delta_month[i];
   }
-  delta_f = total_week_subs;
+  delta_f = total_week_views;
 
   // Attempt to connect to Wifi network:
   WiFi.begin(ssid, password);
@@ -176,29 +177,36 @@ boolean getSubs() {
                   "Connection: close\r\n\r\n");
       while (wsclient.connected()) {
         String line = wsclient.readStringUntil('\n');
-        i = 0;
-        j = 0;
-        while (i < line.length()) {
-          if (line[i] == compare[j]) {
-            j++;
-          } else j = 0;
-          if (j == 15) {
-            sub_string = "";
-            Serial.println("ok");
-            last_http_get = millis();
-            int start_point = i + 6;
-            for (int ii = start_point; line[ii] != '"'; ii++) {
-              sub_string += line[ii];
+        for (int type = 0; type < 2; type++) {
+          i = 0;
+          j = 0;
+          while (i < line.length()) {
+            if (line[i] == compares[type][j]) {
+              j++;
+            } else j = 0;
+            if (j == strlen(compares[type])-1) {
+              sub_string = "";
+              last_http_get = millis();
+              int start_point = i + 6;
+              for (int ii = start_point; line[ii] != '"'; ii++) {
+                sub_string += line[ii];
+              }
+              if (type == 0) {
+                subscribers = sub_string.toInt();
+                Serial.print("SUBS: ");
+                Serial.println(subscribers);
+                return true;
+              } else {
+                Serial.print("VIEWS: ");
+                new_views = sub_string.toInt();
+                Serial.println(new_views);
+              }
             }
-            new_subscribers = sub_string.toInt();
-            Serial.println("NEW SUB:");
-            Serial.println(new_subscribers);
-            return true;
+            i++;
           }
-          i++;
         }
       }
-  }
+    }
   return false;
 }
 
@@ -239,13 +247,13 @@ void loop() {
     min_step = (long)min_step * 60000;
     mid_s = max_gain * 5;
     max_s = max_gain * 10;
-    while (new_subscribers == 0) {
+    while (new_views == 0) {
       Serial.println("try");
-      Serial.println(new_subscribers);
+      Serial.println(new_views);
       getSubs();
     }
-    subscribers = new_subscribers;
-    minute_subs = new_subscribers;
+    views = new_views;
+    minute_views = new_views;
     start_flag = false;
   }
   if (millis() - last_mode > 10000) {
@@ -260,20 +268,19 @@ void loop() {
           lcd.setCursor(2, 0);
           lcd.print("Subscribers:");
           lcd.setCursor(6, 1);
-          lcd.print(new_subscribers / 1000);
+          lcd.print(subscribers / 1000);
           lcd.print("K");
           break;
         case 1:
           lcd.clear();
           lcd.setCursor(0, 0);
           lcd.print("Last week:");
-          lcd.setCursor(12, 0);
-          lcd.print(total_week_subs / 1000);
-          lcd.print("K");
+          lcd.setCursor(11, 0);
+          lcd.print(total_week_views);
           lcd.setCursor(0, 1);
           lcd.print("Last month:");
           lcd.setCursor(12, 1);
-          lcd.print(total_month_subs / 1000);
+          lcd.print(total_month_views / 1000);
           lcd.print("K");
           break;
       }
@@ -305,9 +312,9 @@ void loop() {
     last_Submins = millis();
   }
   if (millis() - last_color > 30000 && wifi_connect) {
-    delta = total_week_subs;
+    delta = total_week_views;
     if (delta < 0) delta = 0;
-    subscribers = new_subscribers;
+    views = new_views;
     delta_f = delta_f * K + delta * (1 - K);
     color = delta_f * 10;
     if (color <= mid_s) {
@@ -334,27 +341,27 @@ void loop() {
     last_color = millis();
   }
   if ((millis() - last_minute > 60000) && wifi_connect) {
-    delta_month[days] += (long)new_subscribers - minute_subs;
+    delta_month[days] += (long)new_views - minute_views;
     if (delta_month[days] < 0) delta_month[days] = 0;
-    minute_subs = new_subscribers;
+    minute_views = new_views;
 
     delta_week[days_week] = delta_month[days];
 
-    total_week_subs = 0;
+    total_week_views = 0;
 
     for (int i = 0; i < 7; i++) {
-      total_week_subs += delta_week[i];
+      total_week_views += delta_week[i];
     }
-    total_month_subs = 0;
+    total_month_views = 0;
     for (int i = 0; i < 30; i++) {
-      total_month_subs += delta_month[i];
+      total_month_views += delta_month[i];
     }
 
     for (int i = 0; i < 7; i++) {
-      EEPROM.write(i, delta_week[i] / 1000);
+      EEPROM.write(i, delta_week[i] / 100);
     }
     for (int i = 0; i < 30; i++) {
-      EEPROM.write(i + 7, delta_month[i] / 1000);
+      EEPROM.write(i + 7, delta_month[i] / 100);
     }
     EEPROM.write(37, days_week);
     EEPROM.write(38, days);

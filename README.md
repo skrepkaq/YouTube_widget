@@ -7,6 +7,7 @@ My version of [AlexGyver](https://github.com/AlexGyver)'s [project](https://gith
 7. Change from last Hour-Day to Week-Month
 993. Add caching last subs in EEPROM
 986. Add WIFI firmware update
+979. Since my channel is dying, and subs counter counts only backwards, switched to count views
 
 ## Widget build
 #### [Original github](https://github.com/AlexGyver/YouTube_widget)
@@ -22,6 +23,6 @@ const char* password = "WIFIPASSWORD";  // your network key
 const char* API_KEY = "APIKEY";  // your google API Token
 const char* CHANNEL_ID = "ID";  // url of channel
 
-int max_gain = 3000;   // число подписок в день, при котором цвет станет красным
+int max_gain = 50000;   // число просмотров в неделю, при котором цвет станет красным
 ```
 4. Compile and upload firmware to ESP
